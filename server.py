@@ -17,10 +17,10 @@ def log_json(**fields):
 
 @dataclass
 class Config:
-    text_port: int = 5000
-    rpc_port: int = 5001
-    sensor_port: int = 5002
-    event_port: int = 5003
+    text_port: int = 5001
+    rpc_port: int = 5003
+    sensor_port: int = 5004
+    event_port: int = 5005
     backlog: int = 128
     thread_pool_size: int = 32
     reservation_ttl_sec: int = 300
