@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""
-rpc_client.py - Minimal RPC client stub with per-RPC timeout.
-
-Framing:
-- 4-byte big-endian uint32 length prefix
-- UTF-8 JSON payload
-
-Request: {"rpcId": 1, "method": "reserve", "args": ["A", "PLATE"]}
-Reply:   {"rpcId": 1, "result": true, "error": null}
-"""
-
 from __future__ import annotations
-
 import json
 import socket
 import struct
@@ -19,13 +7,11 @@ import threading
 from typing import Any, Dict, Tuple
 
 LEN_STRUCT = struct.Struct("!I")
-
 class TimeoutError(Exception):
     pass
-
 class FramingError(Exception):
     pass
-
+    
 def _recv_exact(sock: socket.socket, n: int) -> bytes:
     buf = bytearray()
     while len(buf) < n:
@@ -115,7 +101,6 @@ class RPCClient:
             raise RuntimeError(f"{err.get('type')}: {err.get('message')}")
         return rep.get("result")
 
-    # ---- RPC API ----
     def getLots(self):
         return self._call("getLots", [])
 
