@@ -1,27 +1,5 @@
 #!/usr/bin/env python3
-"""
-server.py - Smart Parking Server (Assignment 2)
-
-Implements:
-- Text protocol (newline-delimited UTF-8) on text_port
-- RPC (length-prefixed framed JSON) on rpc_port
-- Sensor UPDATE ingress on sensor_port
-- Pub/Sub EVENT egress on event_port
-
-Thread model:
-- One accept loop per port (4 daemon threads).
-- A bounded ThreadPoolExecutor handles connection handlers (text/rpc/sensor/event).
-- 2 update worker threads consume queued sensor updates and apply them to shared state.
-- 1 reaper thread expires reservations (TTL) periodically.
-- 1 notifier thread sends queued EVENTs to subscribers.
-
-Back-pressure policy (required):
-- bounded per-subscriber outbound queue (subscriber_queue_max)
-- on overflow: drop oldest (keep most recent)
-"""
-
 from __future__ import annotations
-
 import argparse
 import json
 import queue
@@ -34,16 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# =========================
-# Logging
-# =========================
-
 def log_json(**fields):
     print(json.dumps(fields, separators=(",", ":"), ensure_ascii=False), flush=True)
-
-# =========================
-# Config
-# =========================
 
 @dataclass
 class Config:
