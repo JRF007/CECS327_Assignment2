@@ -1,0 +1,20 @@
+{
+  "text_port": 5001,
+  "rpc_port": 5003,
+  "sensor_port": 5004,
+  "event_port": 5005,
+  "backlog": 128,
+  "thread_pool_size": 32,
+  "reservation_ttl_sec": 300,
+  "subscriber_queue_max": 100,
+  "lots": [
+    {
+      "id": "A",
+      "capacity": 120
+    },
+    {
+      "id": "B",
+      "capacity": 80
+    }
+  ]
+}
