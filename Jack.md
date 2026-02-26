@@ -1,0 +1,1 @@
+I implemented server.py and sensor_sim.py. I fixed a bug that some of the ports I was trying to use was already being used. I had to check which ports were already in use and choose ports that were open to use. One design change I made was I changed from a thread-per-connection model to a bounded thread pool using ThreadPoolExecutor. This prevented unbounded thread creation.
