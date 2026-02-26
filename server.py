@@ -434,9 +434,8 @@ def handle_event_client(sock: socket.socket, addr, pubsub: PubSub):
             pass
         sock.close()
         return
-
+        
     log_json(type="event_attach", subId=sub_id, ts=time.time())
-
     # Keep connection open; notifier thread writes events.
     # Block until client disconnects.
     try:
@@ -467,39 +466,29 @@ def reaper_loop(state: ParkingState, pubsub: PubSub, interval_sec: float):
             log_json(type="reservation_expired", lotId=lot_id, ts=now, old_free=old_free, new_free=new_free)
             pubsub.publish(lot_id, new_free, now)
 
-# =========================
-# Main
-# =========================
-
 def run_server(config_path: str, host: str = "0.0.0.0"):
     cfg = Config.from_file(config_path)
     state = ParkingState(cfg.lots, reservation_ttl_sec=cfg.reservation_ttl_sec)
     pubsub = PubSub(queue_max=cfg.subscriber_queue_max)
     pubsub.start()
-
     update_q: "queue.Queue[Tuple[str,int,float]]" = queue.Queue()
 
     # Two update workers
     for _ in range(2):
         threading.Thread(target=update_worker_loop, args=(state, pubsub, update_q), daemon=True).start()
-
-    # Reservation reaper (TTL)
     threading.Thread(target=reaper_loop, args=(state, pubsub, 2.0), daemon=True).start()
-
     listeners = {
         "text": _make_listener(host, cfg.text_port, cfg.backlog),
         "rpc": _make_listener(host, cfg.rpc_port, cfg.backlog),
         "sensor": _make_listener(host, cfg.sensor_port, cfg.backlog),
         "event": _make_listener(host, cfg.event_port, cfg.backlog),
     }
-
     log_json(
         type="server_start", ts=time.time(), host=host,
         text_port=cfg.text_port, rpc_port=cfg.rpc_port,
         sensor_port=cfg.sensor_port, event_port=cfg.event_port,
         thread_pool_size=cfg.thread_pool_size, backlog=cfg.backlog
     )
-
     executor = ThreadPoolExecutor(max_workers=cfg.thread_pool_size)
 
     def accept_loop(kind: str, listener: socket.socket):
