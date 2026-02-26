@@ -6,21 +6,21 @@ import struct
 import threading
 from typing import Any, Dict, Tuple
 
-LEN_STRUCT = struct.Struct("!I")
+LEN_STRUCT = struct.Struct("!I") # This prevents TCP message sticking
 class TimeoutError(Exception):
     pass
 class FramingError(Exception):
     pass
-    
+# makes sure to read exactly n bytes or fail
 def _recv_exact(sock: socket.socket, n: int) -> bytes:
     buf = bytearray()
-    while len(buf) < n:
+    while len(buf) < n: # Keep reading until buffer has exactly n bytes
         chunk = sock.recv(n - len(buf))
         if not chunk:
             raise EOFError("socket closed")
         buf.extend(chunk)
     return bytes(buf)
-
+# Length-prefixed framing requirement
 def send_frame(sock: socket.socket, obj: Dict[str, Any]) -> None:
     payload = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     sock.sendall(LEN_STRUCT.pack(len(payload)) + payload)
@@ -59,7 +59,7 @@ class RPCClient:
     def _reader_loop(self):
         while True:
             try:
-                rep = recv_frame(self.sock)
+                rep = recv_frame(self.sock) # Waits for a reply frame
             except Exception:
                 with self._lock:
                     for rpc_id, (ev, box) in self._pending.items():
@@ -68,9 +68,9 @@ class RPCClient:
                     self._pending.clear()
                 return
 
-            rpc_id = int(rep.get("rpcId", 0))
+            rpc_id = int(rep.get("rpcId", 0)) # Extract rpcId from reply
             with self._lock:
-                if rpc_id in self._pending:
+                if rpc_id in self._pending: # Find the correct waiting RPC call and wake it up
                     ev, box = self._pending[rpc_id]
                     box["reply"] = rep
                     ev.set()
@@ -79,8 +79,8 @@ class RPCClient:
         with self._lock:
             rpc_id = self._next_id
             self._next_id += 1
-            ev = threading.Event()
-            box: Dict[str, Any] = {}
+            ev = threading.Event() # Event allows thread to wait
+            box: Dict[str, Any] = {} # will store reply
             self._pending[rpc_id] = (ev, box)
             send_frame(self.sock, {"rpcId": rpc_id, "method": method, "args": args})
 
