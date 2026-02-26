@@ -38,11 +38,8 @@ class Config:
                 setattr(c, k, v)
         return c
 
-# =========================
-# RPC framing (length-prefixed JSON)
-# =========================
 
-LEN_STRUCT = struct.Struct("!I")  # big-endian uint32
+LEN_STRUCT = struct.Struct("!I")  # 4-byte length prefix
 
 class FramingError(Exception):
     pass
@@ -57,8 +54,8 @@ def _recv_exact(sock: socket.socket, n: int) -> bytes:
     return bytes(buf)
 
 def send_frame(sock: socket.socket, obj: Dict[str, Any]) -> None:
-    payload = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    sock.sendall(LEN_STRUCT.pack(len(payload)) + payload)
+    payload = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8") # encode payload
+    sock.sendall(LEN_STRUCT.pack(len(payload)) + payload) # send payload
 
 def recv_frame(sock: socket.socket, *, max_len: int = 4 * 1024 * 1024) -> Dict[str, Any]:
     hdr = _recv_exact(sock, LEN_STRUCT.size)
@@ -73,11 +70,7 @@ def recv_frame(sock: socket.socket, *, max_len: int = 4 * 1024 * 1024) -> Dict[s
     if not isinstance(obj, dict):
         raise FramingError("frame JSON must be an object/dict")
     return obj
-
-# =========================
-# Parking state (thread-safe, per-lot locks)
-# =========================
-
+# shared memory state:
 @dataclass
 class Lot:
     id: str
@@ -113,7 +106,7 @@ class ParkingState:
     def snapshot_lots(self) -> List[dict]:
         out = []
         for lot in self._lots.values():
-            with lot.lock:
+            with lot.lock: # Prevents two threads reserving the last spot simultaneously, and guarantees no overbooking
                 self._reap_expired_locked(lot)
                 out.append({"id": lot.id, "capacity": lot.capacity, "occupied": lot.occupied, "free": lot.free()})
         return out
@@ -147,7 +140,7 @@ class ParkingState:
             del lot.reservations[plate]
             lot.occupied = max(0, lot.occupied - 1)
             return "OK"
-
+    # used by sensor path
     def apply_update(self, lot_id: str, delta: int) -> Tuple[int, int]:
         lot = self._get_lot(lot_id)
         with lot.lock:
@@ -161,7 +154,7 @@ class ParkingState:
                 lot.occupied = lot.capacity
             new_free = lot.free()
             return old_free, new_free
-
+    # Called by background reaper thread, and removes expired reservations and publishes events.
     def reap_all_expired(self) -> List[Tuple[str, int, int]]:
         changes = []
         now = time.time()
@@ -174,11 +167,7 @@ class ParkingState:
                     if new_free != old_free:
                         changes.append((lot.id, old_free, new_free))
         return changes
-
-# =========================
-# Pub/Sub with back-pressure
-# =========================
-
+# non-blocking event system
 @dataclass
 class Subscriber:
     sub_id: int
@@ -261,7 +250,7 @@ class PubSub:
                     woke = True
         if woke:
             self._wakeup.set()
-
+    # Dedicated thread that waits for wake-up signal, drains subscriber queues, calls sock.sendall()
     def _notifier_loop(self) -> None:
         while not self._stop.is_set():
             self._wakeup.wait(timeout=0.5)
@@ -285,10 +274,6 @@ class PubSub:
                         log_json(type="subscriber_disconnect", subId=sub.sub_id, lotId=sub.lot_id, ts=time.time())
                         self.unsubscribe(sub.sub_id)
                         break
-
-# =========================
-# Server handlers
-# =========================
 
 def _make_listener(host: str, port: int, backlog: int) -> socket.socket:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -416,16 +401,12 @@ def handle_sensor_client(sock: socket.socket, addr, update_q: "queue.Queue[Tuple
                     delta = int(parts[2])
                 except ValueError:
                     continue
-                update_q.put((lot_id, delta, time.time()))
+                update_q.put((lot_id, delta, time.time())) # Decouples network from state mutation
                 log_json(type="sensor_update_enq", lotId=lot_id, delta=delta, ts=time.time())
             else:
                 log_json(type="sensor_bad_line", ts=time.time(), line=line)
 
 def handle_event_client(sock: socket.socket, addr, pubsub: PubSub):
-    """
-    Subscriber connects to event port and sends:
-      SUB <subId>\n
-    """
     f = sock.makefile("r", encoding="utf-8", newline="\n")
     line = f.readline()
     if not line:
