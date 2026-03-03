@@ -160,82 +160,49 @@ This decouples network I/O from state mutation and prevents blocking RPC traffic
 
 # Publish / Subscribe Design
 ## Subscription Flow
-
-Client calls subscribe(lotId) via RPC
-
-Server returns subId
-
-Client opens separate TCP connection to event_port
-
-Client sends:
-
+1. Client calls subscribe(lotId) via RPC
+2. Server returns subId
+3. Client opens separate TCP connection to event_port
+4. Client sends:
 SUB <subId>
+5. Server attaches socket to subscription
+6. Server pushes EVENT messages asynchronously
 
-Server attaches socket to subscription
-
-Server pushes EVENT messages asynchronously
-
-Event Format
-
+## Event Format
 EVENT <lotId> <free> <timestamp>
-
 Example:
-
 EVENT A 119 1700000000.12345
-
 Timestamp uses time.time() (epoch seconds).
 
-Back-Pressure Policy (Required)
-
+# Back-Pressure Policy (Required)
 Each subscriber has a bounded outbound queue:
-
 queue.Queue(maxsize=subscriber_queue_max)
-
 Policy when queue is full:
-
-Drop oldest event
-
-Insert newest event
-
-Log event_drop
-
+- Drop oldest event
+- Insert newest event
+- Log event_drop
 Rationale:
+- Prevent slow subscribers from blocking the system
+- Protect RPC latency
+- Maintain system responsiveness under fan-out load
 
-Prevent slow subscribers from blocking the system
+# Reservation Expiration
 
-Protect RPC latency
-
-Maintain system responsiveness under fan-out load
-
-Reservation Expiration
-
-Reservations expire after reservation_ttl_sec
-
-A background reaper thread:
-
-Removes expired reservations
-
-Publishes updated EVENT notifications
-
+- Reservations expire after reservation_ttl_sec
+- A background reaper thread:
+-   Removes expired reservations
+-   Publishes updated EVENT notifications
 Ensures consistent availability state even if clients disconnect.
 
-Design Summary
+# Design Summary
+- Server model: Bounded thread pool
+- Synchronization: Per-lot locks
+- Framing: 4-byte big-endian length prefix
+- Marshalling: JSON over UTF-8
+- Timeout: Client-enforced per-RPC timeout
+- Async path: Update queue + worker threads
+- Pub/Sub: Separate TCP event channel
+- Back-pressure: Bounded queue, drop oldest
+- Logging: Structured JSON logs
 
-Server model: Bounded thread pool
-
-Synchronization: Per-lot locks
-
-Framing: 4-byte big-endian length prefix
-
-Marshalling: JSON over UTF-8
-
-Timeout: Client-enforced per-RPC timeout
-
-Async path: Update queue + worker threads
-
-Pub/Sub: Separate TCP event channel
-
-Back-pressure: Bounded queue, drop oldest
-
-Logging: Structured JSON logs
 
