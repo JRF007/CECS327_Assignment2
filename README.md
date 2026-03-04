@@ -23,13 +23,10 @@ Windows:
 
 ## 3. Install Dependencies
 pip install -r requirements.txt\
-This project uses only the Python standard library.
-requirements.txt is included as required by the assignment.
 
 # Running the System
 ## Start the Server
 python3 server.py --config config.json
-The server reads all ports and settings from config.json.
 
 ## Start a Subscriber (Pub/Sub Client)
 python3 subscriber_client.py --rpc-port 5003 --event-port 5005 --lot A
@@ -117,7 +114,6 @@ Encoding:
 The RPC client enforces a per-RPC timeout (default: 2 seconds).
 If a reply is not received within the timeout:
 TimeoutError: RPC <method> timed out after 2.000s
-This prevents indefinite blocking if the server is slow or unreachable.
 
 # Thread Model
 The server uses a bounded thread pool architecture.
@@ -129,21 +125,10 @@ The server uses a bounded thread pool architecture.
 - 1 reservation reaper thread (TTL expiration)
 - 1 pub/sub notifier thread
 
-## Why Bounded Thread Pool?
-- Prevents unbounded thread creation
-- Provides natural back-pressure under load
-- Controls memory and CPU usage
-- Improves stability during high concurrency
-
 # Concurrency & Synchronization
 - Each parking lot has its own lock (per-lot locking)
 - Prevents overbooking under concurrent reservations
 - Reduces contention compared to a global lock
-
-Guarantees:
-- No race conditions
-- No capacity violations
-- Thread-safe state updates
 
 # Asynchronous Sensor Path
 Sensors connect to the dedicated sensor_port and send:
@@ -156,7 +141,6 @@ Design:
 2. Update worker threads consume queue
 3. State is updated under lock
 4. Events are published if free count changes
-This decouples network I/O from state mutation and prevents blocking RPC traffic.
 
 # Publish / Subscribe Design
 ## Subscription Flow
@@ -187,12 +171,10 @@ Rationale:
 - Maintain system responsiveness under fan-out load
 
 # Reservation Expiration
-
 - Reservations expire after reservation_ttl_sec
 - A background reaper thread:
   - Removes expired reservations
   - Publishes updated EVENT notifications
-Ensures consistent availability state even if clients disconnect.
 
 # Design Summary
 - Server model: Bounded thread pool
@@ -204,6 +186,7 @@ Ensures consistent availability state even if clients disconnect.
 - Pub/Sub: Separate TCP event channel
 - Back-pressure: Bounded queue, drop oldest
 - Logging: Structured JSON logs
+
 
 
 
