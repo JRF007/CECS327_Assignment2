@@ -190,8 +190,8 @@ Rationale:
 
 - Reservations expire after reservation_ttl_sec
 - A background reaper thread:
--   Removes expired reservations
--   Publishes updated EVENT notifications
+-- Removes expired reservations
+-- Publishes updated EVENT notifications
 Ensures consistent availability state even if clients disconnect.
 
 # Design Summary
@@ -204,5 +204,6 @@ Ensures consistent availability state even if clients disconnect.
 - Pub/Sub: Separate TCP event channel
 - Back-pressure: Bounded queue, drop oldest
 - Logging: Structured JSON logs
+
 
 
